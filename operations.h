@@ -61,6 +61,7 @@
 //#define REQUEST_SET_STARTUP_FREQ	0x41
 #define REQUEST_SET_PTT				0x50
 #define REQUEST_READ_KEYS			0x51
+#define REQUEST_READ_PCF8574			0x6f
 
 struct solution {
 	int HS_DIV;
@@ -84,6 +85,10 @@ double readFrequencyByValue(usb_dev_handle *handle);
 void getRegisters(usb_dev_handle *handle);
 
 double getFrequency(usb_dev_handle *handle);
+
+int getPTT(usb_dev_handle *handle);
+
+int getkeys(usb_dev_handle *handle);
 
 void setPTT(usb_dev_handle *handle, int value);
 

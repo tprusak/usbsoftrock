@@ -261,6 +261,32 @@ double getFrequency(usb_dev_handle *handle) {
 	return 0.0;
 }
 
+int getPTT(usb_dev_handle *handle){
+	char buffer[1];
+
+	buffer[0] = 0;
+
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, REQUEST_READ_KEYS, 0, 0, (char *) buffer, sizeof(buffer), 5000);
+
+	if (buffer[0] & 0x40) return 1;
+	else return 0;
+}
+
+int getkeys(usb_dev_handle *handle){
+	char buffer[1];
+	int keys = 0;
+
+	buffer[0] = 0;
+
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, REQUEST_READ_KEYS, 0, 0, (char *) buffer, sizeof(buffer), 5000);
+
+	if (buffer[0] & 0x20) keys = 0;		// CW_KEY_1   high: not pressed   low: pressed
+	else keys = 1;
+	if (!(buffer[0] & 0x02)) keys +=2;	// CW_KEY_2   high: not pressed   low: pressed
+						// keys = 3  if both pressed
+	return keys;
+}
+
 void setPTT(usb_dev_handle *handle, int value) {
 	char buffer[3];
 

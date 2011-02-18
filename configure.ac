@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.63])
 AC_INIT(usbsoftrock.c)
-AM_INIT_AUTOMAKE(usbsoftrock,1.0.1)
+AM_INIT_AUTOMAKE(usbsoftrock,1.0.2)
 AC_CONFIG_SRCDIR([usbsoftrock.c])
 AC_CONFIG_HEADERS([config.h])
 

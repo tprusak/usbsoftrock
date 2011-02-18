@@ -85,6 +85,10 @@ double fXtall = SI570_NOMINAL_XTALL_FREQ;
 double startupFreq = SI570_DEFAULT_STARTUP_FREQ;
 
 int setByValue = 0;
+int PTT = 0;
+int keys = 0;		// paddle status 0 : none pressed    1:  dit pressed    2: dah pressed   3: both
+int firmware_PTT = 0;
+int CW_tone = 700;
 
 int major;
 int minor;
@@ -98,10 +102,13 @@ static void usage(char *name)
   fprintf(stderr, "                                 i.e. let the firmware calculate registers\n");
   fprintf(stderr, "  -d                             Enter a mode that listens for commands via UDP.\n");
 //  fprintf(stderr, "  -h <freq MHz>                  Enable subharmonic (/3) sampling from frequency (DEFAULT off)\n");
+  fprintf(stderr, "  -h                             PTT status by reading hardware port\n");
+  fprintf(stderr, "                                 Mobo only.\n");
   fprintf(stderr, "  -i <address>                   I2C address in DECIMAL (DEFAULT = 85 (0x55))\n"); 
   fprintf(stderr, "  -m <multiplier>                Multiplication factor for frequency (DEFAULT = 4)\n");
   fprintf(stderr, "  -p <port num>                  Port to listen for UDP datagrams (DEFAULT = 19004)\n");
   fprintf(stderr, "  -s <startup frequency MHz>     Factory programmed startup frequency (DEFAULT = 56.32)\n");
+  fprintf(stderr, "  -u <serial number>             Serial Number of Device\n");
   fprintf(stderr, "  -v                             Verbose output (fairly useful)\n");
   fprintf(stderr, "  -vv                            Even more verbose output (debugging)\n");
   fprintf(stderr, "  -x <calibrated xtall freq MHz> Corrected XTALL frequency of Si570 device calculated\n");
@@ -114,9 +121,12 @@ static void usage(char *name)
 #ifdef HAVE_LIBNCURSES
   fprintf(stderr, "  interactive\n");
 #endif
+  fprintf(stderr, "  getptt                                 (-h option for Mobo only)\n");
+  fprintf(stderr, "  getkeys                                (PE0FKO+TF3LJ+Mobo)\n");
+  fprintf(stderr, "  gettone\n");
   fprintf(stderr, "  ptt {on|off}\n");
   fprintf(stderr, "  set bpf {on|off}                       (PE0FKO+TF3LJ+Mobo)\n");
-  fprintf(stderr, "  set bpf_addr <band> <filter>           (PE0FKO >= 15.12+Mobo\n");
+  fprintf(stderr, "  set bpf_addr <band> <filter>           (PE0FKO >= 15.12+Mobo)\n");
   fprintf(stderr, "  set bpf_point <crossover> <f in MHz>   (PE0FKO+TF3LJ+Mobo)\n");
   fprintf(stderr, "  set lpf {on|off}                       (TF3LJ+Mobo only)\n");
   fprintf(stderr, "  set lpf_addr <band> <filter>                   \"     \n");
@@ -136,40 +146,62 @@ int do_command(usb_dev_handle *handle, char **argv, int argc, char *result) {
 
   sprintf(result, "ok");
 
-  if ((strcmp(argv[0], "get") == 0) && (argc >= 1)) {
-    if(strcmp(argv[1], "freq") == 0){
+  if (strcmp(argv[0], "get") == 0) {
+    if(argv[1][0] == 'p'){
+	if (firmware_PTT) PTT = getPTT(handle);	// this reads the PTT status from the connected Mobo
+        sprintf(result, "ok %d", PTT);
+	}
+    else if (argv[1][0] == 'k'){
+	keys = getkeys(handle);
+        sprintf(result, "ok %d", keys);
+	}
+    else if(argv[1][0] == 'f'){
       double freq; 
       if (setByValue)
-        freq = readFrequencyByValue(handle);
+       freq = readFrequencyByValue(handle);
       else
         freq = getFrequency(handle);
 
       if (freq != 0.00) {
-        if (verbose >= 2)
-          printf("Frequency   : %f (x %.2f)\n", freq / multiplier, multiplier);
+        if (verbose >= 2) printf("Frequency   : %f (x %.2f)\n", freq / multiplier, multiplier);
         sprintf(result, "ok %f", freq / multiplier);
-      } else {
+      	} 
+      else
+	{
         sprintf(result, "error");
         return -1;
-      }
-    } else if (strcmp(argv[1], "si570_multiplier") == 0) {
+        }
+      } 
+    else if(argv[1][0] == 't'){
+        sprintf(result, "ok %d", CW_tone);
+        }
+    else if (strcmp(argv[1], "si570_multiplier") == 0) {
         double sub, mul;
 	// Just works for non per-band multipliers
         if (readMultiplyLO(handle, 0, &mul, &sub) == 0)
             sprintf(result, "ok %f", mul);
-        else
+        else {
             sprintf(result, "error");
-    } else if (strcmp(argv[1], "local_multiplier")) {
+	    return -1;
+	}
+    } 
+    else if (strcmp(argv[1], "local_multiplier") == 0) {
         sprintf(result, "ok %f", multiplier);
-    } else {
+    } 
+    else {
         sprintf(result, "error");
-    }
-  } else if ((strcmp(argv[0], "set") == 0) && (argc >= 2)) {
+	return -1;
+    } // end if "local multiplier"
+
+  } // end if "get"
+
+else if ((strcmp(argv[0], "set") == 0) && (argc >= 2)) {
 
     if ((strcmp(argv[1], "ptt") == 0) && (argc >= 1)) {
 
-      setPTT(handle, (strncmp(argv[2],"on",2) == 0) ? 1 : 0);
-
+	PTT = (strncmp(argv[2],"on",2) == 0) ? 1 : 0;
+        setPTT(handle, PTT);
+      
     } else if ((strcmp(argv[1], "bpf") == 0)) {
 
 	setBPF(handle, (strncmp(argv[2],"on",2) == 0) ? 1 : 0);
@@ -180,8 +212,10 @@ int do_command(usb_dev_handle *handle, char **argv, int argc, char *result) {
         setFreqByValue(handle, atof(argv[2]));
       else
         setFrequency(handle, atof(argv[2]));
+    } else if (strcmp(argv[1], "tone") == 0) {
+        CW_tone = atof(argv[2]);
       
-    } else if (strcmp(argv[1], "local_multiplier")) {
+    } else if (strcmp(argv[1], "local_multiplier") == 0) {
       multiplier = atof(argv[2]);
     } else {
       sprintf(result, "error");
@@ -205,11 +239,16 @@ int main(int argc, char **argv) {
   char * usbSerialID = NULL;
   int c;
 
+// moved this malloc() here instead of within the while(1) loop
+// to prevent memory leakage problem
+// as *args is not free'ed.
+
+  char **args = malloc(MAX_COMMAND_ARGS * sizeof(char *));
   int port = 19004;
   int daemon = 0;
 
   // Read options
-  while ( (c = getopt(argc, argv, "adi:m:p:s:u:vx:")) != -1) {
+  while ( (c = getopt(argc, argv, "adhi:m:p:s:u:vx:")) != -1) {
     switch (c) {
     case 'i':
       i2cAddress = atoi(optarg);
@@ -219,6 +258,9 @@ int main(int argc, char **argv) {
       break;
     case 'd':
       daemon = 1;
+      break;
+    case 'h':
+      firmware_PTT = 1;
       break;
     case 'm':
       multiplier = atof(optarg);
@@ -318,7 +360,6 @@ int main(int argc, char **argv) {
 
         char *saveptr;
         char *token;
-	char **args = malloc(MAX_COMMAND_ARGS * sizeof(char *));
         int argn = 0;
 
         for (int i=0; i < MAX_COMMAND_ARGS;i++)
@@ -376,9 +417,22 @@ int main(int argc, char **argv) {
       run_interactive(handle);
 #endif
 
+  } else if (strcmp(argv[optind], "getptt") == 0){
+	if (firmware_PTT) PTT = getPTT(handle);
+        printf("PTT   : %d\n", PTT);
+
+ } else if (strcmp(argv[optind], "getkeys") == 0){
+	keys = getkeys(handle);
+        printf("Paddles: %d\n", keys);
+
+ } else if (strcmp(argv[optind], "gettone") == 0){
+        printf("CW Tone: %d\n", CW_tone);
+
   } else if ((strcmp(argv[optind], "ptt") == 0) && (argc >= optind + 1)) {
 
-	setPTT(handle, (strcmp(argv[optind+1],"on") == 0) ? 1 : 0);
+	PTT = (strcmp(argv[optind+1],"on") == 0) ? 1: 0;
+	setPTT(handle, PTT);
+	printf("PTT set to %d\n", PTT);
 
   } else if (strcmp(argv[optind], "calibrate") == 0) {
 	

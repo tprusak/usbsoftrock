@@ -1,0 +1,1 @@
+Usbsoftrock allows use of the Si570 based Softrock kits (and others) from Linux.
